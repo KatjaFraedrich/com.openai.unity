@@ -90,8 +90,8 @@ namespace OpenAI.Realtime
             float? temperature = null,
             int? maxResponseOutputTokens = null)
         {
-            Model = string.IsNullOrWhiteSpace(model.Id)
-                ? "gpt-4o-realtime-preview"
+            Model = string.IsNullOrWhiteSpace(model?.Id)
+                ? "gpt-realtime"
                 : model;
             Modalities = modalities;
             Voice = voice ?? OpenAI.Voice.Alloy;

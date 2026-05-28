@@ -55,7 +55,7 @@ namespace OpenAI.Realtime
                 throw new ArgumentException("User messages must contain only input text or input audio content.");
             }
 
-            if (role == Role.Assistant && !Content.All(c => c.Type is RealtimeContentType.Text or RealtimeContentType.Audio))
+            if (role == Role.Assistant && !Content.All(c => c.Type is RealtimeContentType.Text or RealtimeContentType.Audio or RealtimeContentType.OutputText or RealtimeContentType.OutputAudio))
             {
                 throw new ArgumentException("Assistant messages must contain only text or audio content.");
             }

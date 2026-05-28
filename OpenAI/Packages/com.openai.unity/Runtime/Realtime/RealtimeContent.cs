@@ -33,10 +33,10 @@ namespace OpenAI.Realtime
             Type = type;
             switch (type)
             {
-                case RealtimeContentType.InputText or RealtimeContentType.Text:
+                case RealtimeContentType.InputText or RealtimeContentType.Text or RealtimeContentType.OutputText:
                     Text = text;
                     break;
-                case RealtimeContentType.InputAudio or RealtimeContentType.Audio:
+                case RealtimeContentType.InputAudio or RealtimeContentType.Audio or RealtimeContentType.OutputAudio:
                     Audio = text;
                     break;
                 case RealtimeContentType.ItemReference:
@@ -53,7 +53,7 @@ namespace OpenAI.Realtime
             Type = type;
             Audio = type switch
             {
-                RealtimeContentType.InputAudio or RealtimeContentType.Audio => $"data:audio/wav;base64,{Convert.ToBase64String(audioClip.EncodeToWav())}",
+                RealtimeContentType.InputAudio or RealtimeContentType.Audio or RealtimeContentType.OutputAudio => $"data:audio/wav;base64,{Convert.ToBase64String(audioClip.EncodeToWav())}",
                 _ => throw new ArgumentException($"Invalid content type {type} for audio content")
             };
             Transcript = transcript;
@@ -71,7 +71,7 @@ namespace OpenAI.Realtime
             Type = type;
             Audio = type switch
             {
-                RealtimeContentType.InputAudio or RealtimeContentType.Audio => Convert.ToBase64String(audioData),
+                RealtimeContentType.InputAudio or RealtimeContentType.Audio or RealtimeContentType.OutputAudio => Convert.ToBase64String(audioData),
                 _ => throw new ArgumentException($"Invalid content type {type} for audio content")
             };
             Transcript = transcript;
@@ -83,7 +83,7 @@ namespace OpenAI.Realtime
             Type = type;
             Audio = type switch
             {
-                RealtimeContentType.InputAudio or RealtimeContentType.Audio => Convert.ToBase64String(audioData),
+                RealtimeContentType.InputAudio or RealtimeContentType.Audio or RealtimeContentType.OutputAudio => Convert.ToBase64String(audioData),
                 _ => throw new ArgumentException($"Invalid content type {type} for audio content")
             };
             Transcript = transcript;

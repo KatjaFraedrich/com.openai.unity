@@ -7,7 +7,7 @@ using UnityEngine.Scripting;
 namespace OpenAI.Realtime
 {
     [Preserve]
-    public sealed class ConversationItemInputAudioTranscriptionResponse : BaseRealtimeEvent, IServerEvent
+    public sealed class ConversationItemInputAudioTranscriptionResponse : BaseRealtimeEvent, IServerEvent, IRealtimeEventStream
     {
         [Preserve]
         [JsonConstructor]
@@ -17,6 +17,7 @@ namespace OpenAI.Realtime
             [JsonProperty("content_index")] int? contentIndex,
             [JsonProperty("item_id")] string itemId,
             [JsonProperty("logprobs")] List<LogProbInfo> logProbs,
+            [JsonProperty("delta")] string delta,
             [JsonProperty("transcript")] string transcript,
             [JsonProperty("usage")] object usage,
             [JsonProperty("error")] Error error)
@@ -26,6 +27,7 @@ namespace OpenAI.Realtime
             ContentIndex = contentIndex;
             ItemId = itemId;
             LogProbs = logProbs;
+            Delta = delta;
             Transcript = transcript;
             Usage = usage;
             Error = error;
@@ -63,6 +65,13 @@ namespace OpenAI.Realtime
         public IReadOnlyList<LogProbInfo> LogProbs { get; }
 
         /// <summary>
+        /// The transcribed text delta.
+        /// </summary>
+        [Preserve]
+        [JsonProperty("delta")]
+        public string Delta { get; }
+
+        /// <summary>
         /// The transcribed text.
         /// </summary>
         [Preserve]
@@ -82,6 +91,14 @@ namespace OpenAI.Realtime
 
         [Preserve]
         [JsonIgnore]
+        public bool IsDelta => Type.Contains("delta");
+
+        [Preserve]
+        [JsonIgnore]
+        public bool IsDone => Type.Contains("completed") || Type.Contains("failed");
+
+        [Preserve]
+        [JsonIgnore]
         public bool IsCompleted => Type.Contains("completed");
 
         [Preserve]
@@ -91,5 +108,13 @@ namespace OpenAI.Realtime
         [Preserve]
         public string PrintUsage()
             => Usage?.ToString() ?? "";
+
+        [Preserve]
+        public override string ToString()
+            => IsDelta ? Delta : Transcript;
+
+        [Preserve]
+        public static implicit operator string(ConversationItemInputAudioTranscriptionResponse response)
+            => response?.ToString();
     }
 }

@@ -8,9 +8,9 @@ namespace OpenAI.Realtime
     {
         [EnumMember(Value = "pcm16")]
         PCM16,
-        [EnumMember(Value = "g771_ulaw")]
+        [EnumMember(Value = "g711_ulaw")]
         G771_uLaw,
-        [EnumMember(Value = "g771_alaw")]
+        [EnumMember(Value = "g711_alaw")]
         G771_ALaw,
     }
 }

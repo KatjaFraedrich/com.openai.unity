@@ -1,6 +1,9 @@
 ﻿// Licensed under the MIT License. See LICENSE in the project root for license information.
 
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
+using System.Text;
 using UnityEngine.Scripting;
 
 namespace OpenAI.Realtime
@@ -31,5 +34,43 @@ namespace OpenAI.Realtime
         [Preserve]
         [JsonProperty("error")]
         public Error Error { get; }
+
+        [Preserve]
+        [JsonExtensionData]
+        public IDictionary<string, JToken> AdditionalProperties { get; private set; }
+
+        [Preserve]
+        public override string ToString()
+        {
+            var builder = new StringBuilder();
+
+            if (Type != default)
+            {
+                builder.Append($"Type: {Type}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(Reason))
+            {
+                if (builder.Length > 0) { builder.Append(", "); }
+                builder.Append($"Reason: {Reason}");
+            }
+
+            if (Error != null)
+            {
+                if (builder.Length > 0) { builder.Append(", "); }
+                builder.Append($"Error: {Error}");
+            }
+
+            if (AdditionalProperties != null)
+            {
+                foreach (var property in AdditionalProperties)
+                {
+                    if (builder.Length > 0) { builder.Append(", "); }
+                    builder.Append($"{property.Key}: {property.Value}");
+                }
+            }
+
+            return builder.Length > 0 ? builder.ToString() : "(empty status_details)";
+        }
     }
 }

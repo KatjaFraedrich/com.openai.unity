@@ -156,7 +156,7 @@ namespace OpenAI.Realtime
         /// The set of modalities the model can respond with. To disable audio, set this to ["text"].
         /// </summary>
         [Preserve]
-        [JsonProperty("modalities")]
+        [JsonProperty("output_modalities")]
         [JsonConverter(typeof(ModalityConverter))]
         public Modality Modalities { get; private set; }
 

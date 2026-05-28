@@ -29,7 +29,8 @@ namespace OpenAI.Realtime
         /// <returns><see cref="RealtimeSession"/>.</returns>
         public async Task<RealtimeSession> CreateSessionAsync(SessionConfiguration configuration = null, CancellationToken cancellationToken = default)
         {
-            string model = string.IsNullOrWhiteSpace(configuration?.Model) ? Model.GPT4oRealtime : configuration!.Model;
+            configuration ??= new SessionConfiguration(Model.GPT_Realtime);
+            string model = string.IsNullOrWhiteSpace(configuration.Model) ? Model.GPT_Realtime : configuration.Model;
             var queryParameters = new Dictionary<string, string>();
 
             if (client.Settings.Info.IsAzureOpenAI)
@@ -41,10 +42,13 @@ namespace OpenAI.Realtime
                 queryParameters["model"] = model;
             }
 
-            var payload = JsonConvert.SerializeObject(configuration, OpenAIClient.JsonSerializationOptions);
-            var createSessionResponse = await Rest.PostAsync(GetUrl("/sessions"), payload, new RestParameters(client.DefaultRequestHeaders), cancellationToken);
+            var clientSecret = configuration.ClientSecret ?? new ClientSecret();
+            var sessionPayload = RealtimeSessionConfigurationConverter.ToJObject(configuration, OpenAIClient.JsonSerializer, includeClientSecret: false);
+            var request = new ClientSecretRequest(clientSecret.ExpiresAfter, sessionPayload);
+            var payload = JsonConvert.SerializeObject(request, OpenAIClient.JsonSerializationOptions);
+            var createSessionResponse = await Rest.PostAsync(GetUrl("/client_secrets"), payload, new RestParameters(client.DefaultRequestHeaders), cancellationToken);
             createSessionResponse.Validate(EnableDebug);
-            var createSession = createSessionResponse.Deserialize<SessionConfiguration>(client);
+            var createSession = createSessionResponse.Deserialize<ClientSecretResponse>(client);
 
             if (createSession == null ||
                 string.IsNullOrWhiteSpace(createSession.ClientSecret?.EphemeralApiKey))
@@ -56,15 +60,13 @@ namespace OpenAI.Realtime
             {
 #if !PLATFORM_WEBGL
                 { "User-Agent", "OpenAI-DotNet" },
-                { "OpenAI-Beta", "realtime=v1" },
                 { "Authorization", $"Bearer {createSession.ClientSecret!.EphemeralApiKey}" }
 #endif
             }, new List<string>
             {
 #if PLATFORM_WEBGL // Web browsers do not support headers. https://github.com/openai/openai-realtime-api-beta/blob/339e9553a757ef1cf8c767272fc750c1e62effbb/lib/api.js#L76-L80
                 "realtime",
-                $"openai-insecure-api-key.{createSession.ClientSecret!.EphemeralApiKey}",
-                "openai-beta.realtime-v1"
+                $"openai-insecure-api-key.{createSession.ClientSecret!.EphemeralApiKey}"
 #endif
             });
             var session = new RealtimeSession(websocket, EnableDebug);
@@ -115,6 +117,41 @@ namespace OpenAI.Realtime
                     sessionCreatedTcs.TrySetException(e);
                 }
             }
+        }
+
+        private sealed class ClientSecretRequest
+        {
+            public ClientSecretRequest(ExpiresAfter expiresAfter, object session)
+            {
+                ExpiresAfter = expiresAfter;
+                Session = session;
+            }
+
+            [JsonProperty("expires_after", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public ExpiresAfter ExpiresAfter { get; }
+
+            [JsonProperty("session", DefaultValueHandling = DefaultValueHandling.Ignore)]
+            public object Session { get; }
+        }
+
+        private sealed class ClientSecretResponse
+        {
+            [JsonConstructor]
+            public ClientSecretResponse(
+                [JsonProperty("client_secret")] ClientSecret clientSecret,
+                [JsonProperty("value")] string ephemeralApiKey,
+                [JsonProperty("expires_at")] int? expiresAtUnixTimeSeconds,
+                [JsonProperty("session")] SessionConfiguration session)
+            {
+                ClientSecret = clientSecret ?? session?.ClientSecret ?? new ClientSecret(ephemeralApiKey, expiresAtUnixTimeSeconds);
+                Session = session;
+            }
+
+            [JsonProperty("client_secret")]
+            public ClientSecret ClientSecret { get; }
+
+            [JsonProperty("session")]
+            public SessionConfiguration Session { get; }
         }
     }
 }
