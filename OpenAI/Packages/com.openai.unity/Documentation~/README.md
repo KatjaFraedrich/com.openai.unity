@@ -719,11 +719,49 @@ void ServerEvents(IServerEvent @event)
 }
 ```
 
+#### Create Realtime Transcription Session
+
+Use a transcription session when you only want live speech-to-text and do not want the model to generate assistant responses.
+
+```csharp
+var api = new OpenAIClient();
+var cancellationTokenSource = new CancellationTokenSource();
+var configuration = new RealtimeTranscriptionSessionConfiguration(
+    model: Model.GPT_Realtime_Whisper,
+    language: "en",
+    delay: RealtimeTranscriptionDelay.Low);
+using var session = await api.RealtimeEndpoint.CreateTranscriptionSessionAsync(configuration, cancellationTokenSource.Token);
+var responseTask = session.ReceiveUpdatesAsync<IServerEvent>(ServerEvents, cancellationTokenSource.Token);
+
+await session.SendAsync(new InputAudioBufferAppendRequest(new ReadOnlyMemory<byte>(audioBytes)), cancellationTokenSource.Token);
+await session.SendAsync(new InputAudioBufferCommitRequest(), cancellationTokenSource.Token);
+await responseTask;
+
+void ServerEvents(IServerEvent @event)
+{
+    switch (@event)
+    {
+        case ConversationItemInputAudioTranscriptionResponse transcriptionResponse:
+            if (transcriptionResponse.IsDelta)
+            {
+                Debug.Log(transcriptionResponse.Delta);
+            }
+            else if (transcriptionResponse.IsCompleted)
+            {
+                Debug.Log(transcriptionResponse.Transcript);
+            }
+
+            break;
+    }
+}
+```
+
 #### Client Events
 
 The library implements `IClientEvent` interface for outgoing client sent events.
 
 - [`UpdateSessionRequest`](https://platform.openai.com/docs/api-reference/realtime-client-events/session/update): Update the session with new session options.
+- `UpdateTranscriptionSessionRequest`: Update a realtime transcription session with new transcription options.
 - [`InputAudioBufferAppendRequest`](https://platform.openai.com/docs/api-reference/realtime-client-events/input-audio-buffer/append): Append audio to the input audio buffer. (Unlike made other client events, the server will not send a confirmation response to this event).
 - [`InputAudioBufferCommitRequest`](https://platform.openai.com/docs/api-reference/realtime-client-events/input-audio-buffer/commit): Commit the input audio buffer. (When in Server VAD mode, the client does not need to send this event).
 - [`InputAudioBufferClearRequest`](https://platform.openai.com/docs/api-reference/realtime-client-events/input-audio-buffer/clear): Clear the input audio buffer.
@@ -758,6 +796,7 @@ The library implements `IServerEvent` interface for incoming server sent events.
 
 - [`RealtimeEventError`](https://platform.openai.com/docs/api-reference/realtime-server-events/error): Returned when an error occurs, which could be a client problem or a server problem.
 - [`SessionResponse`](https://platform.openai.com/docs/api-reference/realtime-server-events/session): Returned for both a `session.created` and `session.updated` event.
+- `TranscriptionSessionResponse`: Returned for `transcription_session.created` and `transcription_session.updated` events.
 - [`RealtimeConversationResponse`](https://platform.openai.com/docs/api-reference/realtime-server-events/conversation/created): Returned when a new conversation item is created.
 - [`ConversationItemCreatedResponse`](https://platform.openai.com/docs/api-reference/realtime-server-events/conversation/item/created): Returned when a new conversation item is created.
 - [`ConversationItemInputAudioTranscriptionResponse`](https://platform.openai.com/docs/api-reference/realtime-server-events/conversation): Returned when the input audio transcription is completed or failed.

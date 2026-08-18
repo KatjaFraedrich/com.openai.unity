@@ -21,7 +21,9 @@ namespace OpenAI
 
             return type switch
             {
-                "session.update" => jObject.ToObject<UpdateSessionRequest>(serializer),
+                "session.update" => jObject["session"]?["type"]?.Value<string>() == "transcription"
+                    ? jObject.ToObject<UpdateTranscriptionSessionRequest>(serializer)
+                    : jObject.ToObject<UpdateSessionRequest>(serializer),
                 "input_audio_buffer.append" => jObject.ToObject<InputAudioBufferAppendRequest>(serializer),
                 "input_audio_buffer.commit" => jObject.ToObject<InputAudioBufferCommitRequest>(serializer),
                 "input_audio_buffer.clear" => jObject.ToObject<InputAudioBufferClearRequest>(serializer),

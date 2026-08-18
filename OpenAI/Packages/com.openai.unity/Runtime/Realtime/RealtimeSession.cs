@@ -1,6 +1,7 @@
 ﻿// Licensed under the MIT License. See LICENSE in the project root for license information.
 
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -36,6 +37,12 @@ namespace OpenAI.Realtime
         [Preserve]
         public SessionConfiguration Configuration { get; internal set; }
 
+        /// <summary>
+        /// The configuration options for a realtime transcription session.
+        /// </summary>
+        [Preserve]
+        public RealtimeTranscriptionSessionConfiguration TranscriptionConfiguration { get; internal set; }
+
         #region Internal
 
         internal event Action<IServerEvent> OnEventReceived;
@@ -63,7 +70,7 @@ namespace OpenAI.Realtime
             {
                 if (EnableDebug)
                 {
-                    Debug.Log(dataFrame.Text);
+                    Debug.Log($"[RealtimeSession] received raw event:\n{RedactSecrets(dataFrame.Text)}");
                 }
 
                 try
@@ -91,6 +98,49 @@ namespace OpenAI.Realtime
         [Preserve]
         ~RealtimeSession()
             => Dispose(false);
+
+        private static string RedactSecrets(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return json;
+            }
+
+            try
+            {
+                var token = Newtonsoft.Json.Linq.JToken.Parse(json);
+                Redact(token);
+                return token.ToString(Formatting.Indented);
+            }
+            catch
+            {
+                return json;
+            }
+
+            static void Redact(Newtonsoft.Json.Linq.JToken token)
+            {
+                if (token is Newtonsoft.Json.Linq.JObject jObject)
+                {
+                    foreach (var property in jObject.Properties())
+                    {
+                        if (property.Name == "value" || property.Name == "ephemeral_api_key")
+                        {
+                            property.Value = "<redacted>";
+                            continue;
+                        }
+
+                        Redact(property.Value);
+                    }
+                }
+                else if (token is Newtonsoft.Json.Linq.JArray jArray)
+                {
+                    foreach (var child in jArray)
+                    {
+                        Redact(child);
+                    }
+                }
+            }
+        }
 
         #region IDisposable
 
@@ -234,6 +284,10 @@ namespace OpenAI.Realtime
         public async Task<IServerEvent> SendAsync<T>(T @event, CancellationToken cancellationToken = default) where T : IClientEvent
             => await SendAsync(@event, null, cancellationToken);
 
+        [Preserve]
+        public async Task<IServerEvent> SendAsync<T>(T @event, CancellationToken cancellationToken = default, params string[] requestOverrideJsonObjects) where T : IClientEvent
+            => await SendAsync(@event, null, cancellationToken, requestOverrideJsonObjects);
+
         /// <summary>
         /// Send a client event to the server.
         /// </summary>
@@ -244,6 +298,10 @@ namespace OpenAI.Realtime
         /// <returns><see cref="Task{IServerEvent}"/>.</returns>
         [Preserve]
         public async Task<IServerEvent> SendAsync<T>(T @event, Action<IServerEvent> sessionEvents, CancellationToken cancellationToken = default) where T : IClientEvent
+            => await SendAsync(@event, sessionEvents, cancellationToken, null);
+
+        [Preserve]
+        public async Task<IServerEvent> SendAsync<T>(T @event, Action<IServerEvent> sessionEvents, CancellationToken cancellationToken = default, params string[] requestOverrideJsonObjects) where T : IClientEvent
         {
             if (websocketClient.State != State.Open)
             {
@@ -251,7 +309,11 @@ namespace OpenAI.Realtime
             }
 
             IClientEvent clientEvent = @event;
-            var payload = clientEvent.ToJsonString();
+            var typedPayload = JObject.FromObject(clientEvent, OpenAIClient.JsonSerializer);
+            var payloadObject = new JObject();
+            RequestPayloadUtility.ApplyJsonOverrides(payloadObject, requestOverrideJsonObjects);
+            RequestPayloadUtility.MergeInto(payloadObject, typedPayload);
+            var payload = payloadObject.ToString(Formatting.None);
 
             if (EnableDebug)
             {
@@ -327,6 +389,10 @@ namespace OpenAI.Realtime
                     {
                         case UpdateSessionRequest when serverEvent is SessionResponse sessionResponse:
                             Configuration = sessionResponse.SessionConfiguration;
+                            Complete();
+                            return;
+                        case UpdateTranscriptionSessionRequest when serverEvent is TranscriptionSessionResponse transcriptionSessionResponse:
+                            TranscriptionConfiguration = transcriptionSessionResponse.SessionConfiguration;
                             Complete();
                             return;
                         case InputAudioBufferCommitRequest when serverEvent is InputAudioBufferCommittedResponse:

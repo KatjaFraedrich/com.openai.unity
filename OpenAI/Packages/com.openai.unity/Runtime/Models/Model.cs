@@ -226,6 +226,11 @@ namespace OpenAI.Models
         /// </remarks>
         public static Model GPT4oRealtimeMini { get; } = new("gpt-4o-mini-realtime-preview", "openai");
 
+        /// <summary>
+        /// GPT Realtime Whisper is a streaming speech-to-text model built for low-latency realtime transcription sessions.
+        /// </summary>
+        public static Model GPT_Realtime_Whisper { get; } = new("gpt-realtime-whisper", "openai");
+
         #endregion Realtime Models
 
         #region Chat Models

@@ -97,7 +97,7 @@ namespace OpenAI
             return json;
         }
 
-        private static void WriteIfNotNull(JObject json, string propertyName, object value)
+        internal static void WriteIfNotNull(JObject json, string propertyName, object value)
         {
             if (value == null)
             {
@@ -147,7 +147,7 @@ namespace OpenAI
             return modalities;
         }
 
-        private static JObject WriteAudioFormat(RealtimeAudioFormat format)
+        internal static JObject WriteAudioFormat(RealtimeAudioFormat format)
         {
             var json = new JObject();
 
@@ -168,7 +168,7 @@ namespace OpenAI
             return json;
         }
 
-        private static RealtimeAudioFormat ReadAudioFormat(JToken token)
+        internal static RealtimeAudioFormat ReadAudioFormat(JToken token)
         {
             var value = token switch
             {
@@ -185,7 +185,7 @@ namespace OpenAI
             };
         }
 
-        private static IVoiceActivityDetectionSettings ReadVoiceActivityDetectionSettings(JToken token, JsonSerializer serializer)
+        internal static IVoiceActivityDetectionSettings ReadVoiceActivityDetectionSettings(JToken token, JsonSerializer serializer)
         {
             if (token == null || token.Type == JTokenType.Null)
             {

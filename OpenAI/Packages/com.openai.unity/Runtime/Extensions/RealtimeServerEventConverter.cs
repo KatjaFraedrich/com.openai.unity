@@ -22,6 +22,7 @@ namespace OpenAI
             return type switch
             {
                 "error" => jObject.ToObject<RealtimeEventError>(serializer),
+                _ when type.StartsWith("transcription_session") => jObject.ToObject<TranscriptionSessionResponse>(serializer),
                 _ when type.StartsWith("session") => jObject.ToObject<SessionResponse>(serializer),
                 "conversation.created" => jObject.ToObject<RealtimeConversationResponse>(serializer),
                 "conversation.item.created" => jObject.ToObject<ConversationItemCreatedResponse>(serializer),
@@ -34,7 +35,9 @@ namespace OpenAI
                 "input_audio_buffer.cleared" => jObject.ToObject<InputAudioBufferClearedResponse>(serializer),
                 "input_audio_buffer.speech_started" => jObject.ToObject<InputAudioBufferStartedResponse>(serializer),
                 "input_audio_buffer.speech_stopped" => jObject.ToObject<InputAudioBufferStoppedResponse>(serializer),
+                _ when type.StartsWith("response.output_audio_transcript") => jObject.ToObject<ResponseAudioTranscriptResponse>(serializer),
                 _ when type.StartsWith("response.audio_transcript") => jObject.ToObject<ResponseAudioTranscriptResponse>(serializer),
+                _ when type.StartsWith("response.output_audio") => jObject.ToObject<ResponseAudioResponse>(),
                 _ when type.StartsWith("response.audio") => jObject.ToObject<ResponseAudioResponse>(),
                 _ when type.StartsWith("response.content_part") => jObject.ToObject<ResponseContentPartResponse>(serializer),
                 _ when type.StartsWith("response.function_call_arguments") => jObject.ToObject<ResponseFunctionCallArgumentsResponse>(serializer),

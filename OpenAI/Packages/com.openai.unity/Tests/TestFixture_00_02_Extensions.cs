@@ -150,6 +150,19 @@ namespace OpenAI.Tests
             Debug.Log(schema.ToString());
         }
 
+        [Test]
+        public void Test_02_03_GenerateJsonSchema_InheritedMembers()
+        {
+            JsonSchema schema = typeof(DerivedSchema);
+            var properties = (JObject)schema.Schema["properties"];
+            var required = (JArray)schema.Schema["required"];
+
+            Assert.IsTrue(properties.ContainsKey("base_property"));
+            Assert.IsTrue(properties.ContainsKey(nameof(DerivedSchema.DerivedProperty)));
+            Assert.IsTrue(required.Any(value => value.Value<string>() == "base_property"));
+            Assert.IsTrue(required.Any(value => value.Value<string>() == nameof(DerivedSchema.DerivedProperty)));
+        }
+
         private class TestSchema
         {
             // test all primitive types can be serialized
@@ -179,6 +192,17 @@ namespace OpenAI.Tests
             public IDictionary<string, int> IntDictionary { get; set; }
             public IReadOnlyDictionary<string, string> StringDictionary { get; set; }
             public Dictionary<string, MathResponse> CustomDictionary { get; set; }
+        }
+
+        private class BaseSchema
+        {
+            [JsonProperty("base_property")]
+            public string BaseProperty { get; set; }
+        }
+
+        private class DerivedSchema : BaseSchema
+        {
+            public string DerivedProperty { get; set; }
         }
 
         private enum TestEnum

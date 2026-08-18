@@ -1,6 +1,7 @@
 ﻿// Licensed under the MIT License. See LICENSE in the project root for license information.
 
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using OpenAI.Extensions;
 using OpenAI.Models;
 using System;
@@ -28,6 +29,9 @@ namespace OpenAI.Realtime
         /// <param name="cancellationToken">Optional, <see cref="CancellationToken"/>.</param>
         /// <returns><see cref="RealtimeSession"/>.</returns>
         public async Task<RealtimeSession> CreateSessionAsync(SessionConfiguration configuration = null, CancellationToken cancellationToken = default)
+            => await CreateSessionAsync(configuration, cancellationToken, null);
+
+        public async Task<RealtimeSession> CreateSessionAsync(SessionConfiguration configuration = null, CancellationToken cancellationToken = default, params string[] sessionOverrideJsonObjects)
         {
             configuration ??= new SessionConfiguration(Model.GPT_Realtime);
             string model = string.IsNullOrWhiteSpace(configuration.Model) ? Model.GPT_Realtime : configuration.Model;
@@ -43,7 +47,10 @@ namespace OpenAI.Realtime
             }
 
             var clientSecret = configuration.ClientSecret ?? new ClientSecret();
-            var sessionPayload = RealtimeSessionConfigurationConverter.ToJObject(configuration, OpenAIClient.JsonSerializer, includeClientSecret: false);
+            var typedSessionPayload = RealtimeSessionConfigurationConverter.ToJObject(configuration, OpenAIClient.JsonSerializer, includeClientSecret: false);
+            var sessionPayload = new JObject();
+            RequestPayloadUtility.ApplyJsonOverrides(sessionPayload, sessionOverrideJsonObjects);
+            RequestPayloadUtility.MergeInto(sessionPayload, typedSessionPayload);
             var request = new ClientSecretRequest(clientSecret.ExpiresAfter, sessionPayload);
             var payload = JsonConvert.SerializeObject(request, OpenAIClient.JsonSerializationOptions);
             var createSessionResponse = await Rest.PostAsync(GetUrl("/client_secrets"), payload, new RestParameters(client.DefaultRequestHeaders), cancellationToken);
@@ -119,6 +126,67 @@ namespace OpenAI.Realtime
             }
         }
 
+        /// <summary>
+        /// Creates a new realtime transcription session with the provided <see cref="RealtimeTranscriptionSessionConfiguration"/> options.
+        /// </summary>
+        /// <param name="configuration"><see cref="RealtimeTranscriptionSessionConfiguration"/>.</param>
+        /// <param name="cancellationToken">Optional, <see cref="CancellationToken"/>.</param>
+        /// <returns><see cref="RealtimeSession"/>.</returns>
+        public async Task<RealtimeSession> CreateTranscriptionSessionAsync(RealtimeTranscriptionSessionConfiguration configuration = null, CancellationToken cancellationToken = default)
+            => await CreateTranscriptionSessionAsync(configuration, cancellationToken, null);
+
+        public async Task<RealtimeSession> CreateTranscriptionSessionAsync(RealtimeTranscriptionSessionConfiguration configuration = null, CancellationToken cancellationToken = default, params string[] sessionOverrideJsonObjects)
+        {
+            configuration ??= new RealtimeTranscriptionSessionConfiguration();
+            var queryParameters = new Dictionary<string, string>
+            {
+                ["intent"] = "transcription"
+            };
+
+            var clientSecret = configuration.ClientSecret ?? new ClientSecret();
+            var typedSessionPayload = RealtimeTranscriptionSessionConfigurationConverter.ToJObject(configuration, OpenAIClient.JsonSerializer, includeClientSecret: false);
+            var sessionPayload = new JObject();
+            RequestPayloadUtility.ApplyJsonOverrides(sessionPayload, sessionOverrideJsonObjects);
+            RequestPayloadUtility.MergeInto(sessionPayload, typedSessionPayload);
+            var request = new ClientSecretRequest(clientSecret.ExpiresAfter, sessionPayload);
+            var payload = JsonConvert.SerializeObject(request, OpenAIClient.JsonSerializationOptions);
+            var clientSecretUrl = GetUrl("/client_secrets");
+            Debug.Log($"[RealtimeEndpoint] Creating realtime transcription client secret: POST {clientSecretUrl}\n{RedactSecrets(payload)}");
+            var createSessionResponse = await Rest.PostAsync(clientSecretUrl, payload, new RestParameters(client.DefaultRequestHeaders), cancellationToken);
+            createSessionResponse.Validate(EnableDebug);
+            Debug.Log($"[RealtimeEndpoint] Realtime transcription client secret response:\n{RedactSecrets(createSessionResponse.Body)}");
+            var createSession = createSessionResponse.Deserialize<TranscriptionClientSecretResponse>(client);
+
+            if (createSession == null ||
+                string.IsNullOrWhiteSpace(createSession.ClientSecret?.EphemeralApiKey))
+            {
+                throw new InvalidOperationException("Failed to create a transcription session. Ensure the configuration is valid and the API key is set.");
+            }
+
+            var websocketUri = GetWebsocketUri(queryParameters: queryParameters);
+            Debug.Log($"[RealtimeEndpoint] Connecting realtime transcription WebSocket: {websocketUri}");
+            var websocket = new WebSocket(websocketUri, new Dictionary<string, string>
+            {
+#if !PLATFORM_WEBGL
+                { "User-Agent", "OpenAI-DotNet" },
+                { "Authorization", $"Bearer {createSession.ClientSecret!.EphemeralApiKey}" }
+#endif
+            }, new List<string>
+            {
+#if PLATFORM_WEBGL
+                "realtime",
+                $"openai-insecure-api-key.{createSession.ClientSecret!.EphemeralApiKey}"
+#endif
+            });
+            var session = new RealtimeSession(websocket, EnableDebug);
+            session.TranscriptionConfiguration = createSession.Session;
+
+            await session.ConnectAsync(cancellationToken).ConfigureAwait(true);
+            Debug.Log($"[RealtimeEndpoint] Realtime transcription WebSocket connected; using REST-created session:\n{RedactSecrets(JsonConvert.SerializeObject(createSession.Session, OpenAIClient.JsonSerializationOptions))}");
+
+            return session;
+        }
+
         private sealed class ClientSecretRequest
         {
             public ClientSecretRequest(ExpiresAfter expiresAfter, object session)
@@ -153,5 +221,69 @@ namespace OpenAI.Realtime
             [JsonProperty("session")]
             public SessionConfiguration Session { get; }
         }
+
+        private sealed class TranscriptionClientSecretResponse
+        {
+            [JsonConstructor]
+            public TranscriptionClientSecretResponse(
+                [JsonProperty("client_secret")] ClientSecret clientSecret,
+                [JsonProperty("value")] string ephemeralApiKey,
+                [JsonProperty("expires_at")] int? expiresAtUnixTimeSeconds,
+                [JsonProperty("session")] RealtimeTranscriptionSessionConfiguration session)
+            {
+                ClientSecret = clientSecret ?? session?.ClientSecret ?? new ClientSecret(ephemeralApiKey, expiresAtUnixTimeSeconds);
+                Session = session;
+            }
+
+            [JsonProperty("client_secret")]
+            public ClientSecret ClientSecret { get; }
+
+            [JsonProperty("session")]
+            public RealtimeTranscriptionSessionConfiguration Session { get; }
+        }
+
+        private static string RedactSecrets(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return json;
+            }
+
+            try
+            {
+                var token = JToken.Parse(json);
+                Redact(token);
+                return token.ToString(Formatting.Indented);
+            }
+            catch
+            {
+                return json;
+            }
+
+            static void Redact(JToken token)
+            {
+                if (token is JObject jObject)
+                {
+                    foreach (var property in jObject.Properties())
+                    {
+                        if (property.Name == "value" || property.Name == "ephemeral_api_key")
+                        {
+                            property.Value = "<redacted>";
+                            continue;
+                        }
+
+                        Redact(property.Value);
+                    }
+                }
+                else if (token is JArray jArray)
+                {
+                    foreach (var child in jArray)
+                    {
+                        Redact(child);
+                    }
+                }
+            }
+        }
+
     }
 }

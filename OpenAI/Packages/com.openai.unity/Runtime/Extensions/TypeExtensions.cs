@@ -65,7 +65,7 @@ namespace OpenAI.Extensions
             };
 
             var requiredProperties = new JArray();
-            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
             foreach (var property in properties)
             {
@@ -153,8 +153,8 @@ namespace OpenAI.Extensions
                 rootSchema["definitions"] ??= new JObject();
                 rootSchema["definitions"][type.FullName!] = new JObject();
 
-                var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-                var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+                var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
                 var members = new List<MemberInfo>(properties.Length + fields.Length);
                 members.AddRange(properties);
                 members.AddRange(fields);

@@ -45,17 +45,28 @@ namespace OpenAI.Realtime
             Type = ConversationItemType.Message;
             Content = content?.ToList() ?? new List<RealtimeContent>();
 
-            if (role is not (Role.Assistant or Role.User))
+            if (role is not (Role.System or Role.Developer or Role.Assistant or Role.User))
             {
-                throw new ArgumentException("Role must be either 'user' or 'assistant'.");
+                throw new ArgumentException("Role must be 'system', 'developer', 'user', or 'assistant'.");
             }
 
-            if (role == Role.User && !Content.All(c => c.Type is RealtimeContentType.InputAudio or RealtimeContentType.InputText))
+            if (role is Role.System or Role.Developer
+                && !Content.All(c => c.Type is RealtimeContentType.InputText or RealtimeContentType.Text))
+            {
+                throw new ArgumentException("System and developer messages must contain only text content.");
+            }
+
+            if (role == Role.User
+                && !Content.All(c => c.Type is RealtimeContentType.InputAudio or RealtimeContentType.InputText))
             {
                 throw new ArgumentException("User messages must contain only input text or input audio content.");
             }
 
-            if (role == Role.Assistant && !Content.All(c => c.Type is RealtimeContentType.Text or RealtimeContentType.Audio or RealtimeContentType.OutputText or RealtimeContentType.OutputAudio))
+            if (role == Role.Assistant
+                && !Content.All(c => c.Type is RealtimeContentType.Text
+                    or RealtimeContentType.Audio
+                    or RealtimeContentType.OutputText
+                    or RealtimeContentType.OutputAudio))
             {
                 throw new ArgumentException("Assistant messages must contain only text or audio content.");
             }

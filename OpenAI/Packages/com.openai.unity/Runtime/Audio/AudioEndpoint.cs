@@ -138,8 +138,11 @@ namespace OpenAI.Audio
         /// <returns>The transcribed text.</returns>
         [Function("Transcribes audio into the input language. Returns transcribed text.")]
         public async Task<string> CreateTranscriptionTextAsync(AudioTranscriptionRequest request, CancellationToken cancellationToken = default)
+            => await CreateTranscriptionTextAsync(request, null, cancellationToken);
+
+        public async Task<string> CreateTranscriptionTextAsync(AudioTranscriptionRequest request, string requestOverrideJson, CancellationToken cancellationToken = default)
         {
-            var response = await Internal_CreateTranscriptionAsync(request, cancellationToken);
+            var response = await Internal_CreateTranscriptionAsync(request, cancellationToken, requestOverrideJson);
             return request.ResponseFormat == AudioResponseFormat.Json
                 ? JsonConvert.DeserializeObject<AudioResponse>(response)?.Text
                 : response;
@@ -154,17 +157,20 @@ namespace OpenAI.Audio
         /// <returns><see cref="AudioResponse"/>.</returns>
         [Function("Transcribes audio into the input language. Returns Json parsed AudioResponse.")]
         public async Task<AudioResponse> CreateTranscriptionJsonAsync(AudioTranscriptionRequest request, CancellationToken cancellationToken = default)
+            => await CreateTranscriptionJsonAsync(request, null, cancellationToken);
+
+        public async Task<AudioResponse> CreateTranscriptionJsonAsync(AudioTranscriptionRequest request, string requestOverrideJson, CancellationToken cancellationToken = default)
         {
             if (request.ResponseFormat is not (AudioResponseFormat.Json or AudioResponseFormat.Verbose_Json))
             {
                 throw new ArgumentException("Response format must be Json or Verbose Json.", nameof(request.ResponseFormat));
             }
 
-            var response = await Internal_CreateTranscriptionAsync(request, cancellationToken);
+            var response = await Internal_CreateTranscriptionAsync(request, cancellationToken, requestOverrideJson);
             return JsonConvert.DeserializeObject<AudioResponse>(response);
         }
 
-        private async Task<string> Internal_CreateTranscriptionAsync(AudioTranscriptionRequest request, CancellationToken cancellationToken = default)
+        private async Task<string> Internal_CreateTranscriptionAsync(AudioTranscriptionRequest request, CancellationToken cancellationToken = default, params string[] requestOverrideJsonObjects)
         {
             var payload = new WWWForm();
 
@@ -173,6 +179,15 @@ namespace OpenAI.Audio
                 using var audioData = new MemoryStream();
                 await request.Audio.CopyToAsync(audioData, cancellationToken);
                 payload.AddBinaryData("file", audioData.ToArray(), request.AudioName);
+
+                if (requestOverrideJsonObjects != null)
+                {
+                    foreach (string requestOverrideJsonObject in requestOverrideJsonObjects)
+                    {
+                        RequestPayloadUtility.AddFormFields(payload, requestOverrideJsonObject);
+                    }
+                }
+
                 payload.AddField("model", request.Model);
 
                 if (request.ChunkingStrategy != null)
@@ -216,6 +231,7 @@ namespace OpenAI.Audio
                         payload.AddField("timestamp_granularities[]", request.TimestampGranularities.ToString().ToLower());
                         break;
                 }
+
             }
             finally
             {

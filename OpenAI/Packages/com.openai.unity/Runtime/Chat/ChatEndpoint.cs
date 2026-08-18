@@ -30,8 +30,20 @@ namespace OpenAI.Chat
         /// <param name="cancellationToken">Optional, <see cref="CancellationToken"/>.</param>
         /// <returns><see cref="ChatResponse"/>.</returns>
         public async Task<ChatResponse> GetCompletionAsync(ChatRequest chatRequest, CancellationToken cancellationToken = default)
+            => await GetCompletionAsync(chatRequest, null, cancellationToken);
+
+        public async Task<ChatResponse> GetCompletionAsync(ChatRequest chatRequest, string requestOverrideJson, CancellationToken cancellationToken = default)
+            => await GetCompletionAsync(chatRequest, cancellationToken, requestOverrideJson);
+
+        public async Task<ChatResponse> GetCompletionAsync(ChatRequest chatRequest, CancellationToken cancellationToken = default, params string[] requestOverrideJsonObjects)
         {
-            var payload = JsonConvert.SerializeObject(chatRequest, OpenAIClient.JsonSerializationOptions);
+            var payload = RequestPayloadUtility.BuildJsonPayload(chatRequest, OpenAIClient.JsonSerializer, requestOverrideJsonObjects);
+            if (chatRequest.ResponseFormatObject != null)
+            {
+                var debugPayload = RequestPayloadUtility.BuildJObjectPayload(chatRequest, OpenAIClient.JsonSerializer, requestOverrideJsonObjects).ToString(Formatting.Indented);
+                Debug.Log("OpenAI structured chat request JSON:\n" + debugPayload);
+            }
+
             var response = await Rest.PostAsync(GetUrl("/completions"), payload, new RestParameters(client.DefaultRequestHeaders), cancellationToken);
             response.Validate(EnableDebug);
             return response.Deserialize<ChatResponse>(client);
@@ -45,9 +57,15 @@ namespace OpenAI.Chat
         /// <param name="cancellationToken">Optional, <see cref="CancellationToken"/>.</param>
         /// <returns><see cref="ChatResponse"/>.</returns>
         public async Task<(T, ChatResponse)> GetCompletionAsync<T>(ChatRequest chatRequest, CancellationToken cancellationToken = default)
+            => await GetCompletionAsync<T>(chatRequest, null, cancellationToken);
+
+        public async Task<(T, ChatResponse)> GetCompletionAsync<T>(ChatRequest chatRequest, string requestOverrideJson, CancellationToken cancellationToken = default)
+            => await GetCompletionAsync<T>(chatRequest, cancellationToken, requestOverrideJson);
+
+        public async Task<(T, ChatResponse)> GetCompletionAsync<T>(ChatRequest chatRequest, CancellationToken cancellationToken = default, params string[] requestOverrideJsonObjects)
         {
             chatRequest.ResponseFormatObject = new TextResponseFormatConfiguration(typeof(T));
-            var response = await GetCompletionAsync(chatRequest, cancellationToken);
+            var response = await GetCompletionAsync(chatRequest, cancellationToken, requestOverrideJsonObjects);
             var output = JsonConvert.DeserializeObject<T>(response.FirstChoice, OpenAIClient.JsonSerializationOptions);
             return (output, response);
         }
@@ -129,13 +147,16 @@ namespace OpenAI.Chat
         /// <param name="cancellationToken">Optional, <see cref="CancellationToken"/>.</param>
         /// <returns><see cref="ChatResponse"/>.</returns>
         public async Task<ChatResponse> StreamCompletionAsync(ChatRequest chatRequest, Func<ChatResponse, Task> resultHandler, bool streamUsage = false, CancellationToken cancellationToken = default)
+            => await StreamCompletionAsync(chatRequest, resultHandler, streamUsage, cancellationToken, null);
+
+        public async Task<ChatResponse> StreamCompletionAsync(ChatRequest chatRequest, Func<ChatResponse, Task> resultHandler, bool streamUsage = false, CancellationToken cancellationToken = default, params string[] requestOverrideJsonObjects)
         {
             if (chatRequest == null) { throw new ArgumentNullException(nameof(chatRequest)); }
             if (resultHandler == null) { throw new ArgumentNullException(nameof(resultHandler)); }
             chatRequest.Stream = true;
             chatRequest.StreamOptions = streamUsage ? new StreamOptions() : null;
             ChatResponse chatResponse = null;
-            var payload = JsonConvert.SerializeObject(chatRequest, OpenAIClient.JsonSerializationOptions);
+            var payload = RequestPayloadUtility.BuildJsonPayload(chatRequest, OpenAIClient.JsonSerializer, requestOverrideJsonObjects);
             var response = await Rest.PostAsync(GetUrl("/completions"), payload, async (sseResponse, ssEvent) =>
             {
                 try
