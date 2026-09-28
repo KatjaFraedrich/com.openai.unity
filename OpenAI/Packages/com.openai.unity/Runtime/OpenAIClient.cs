@@ -11,6 +11,7 @@ using OpenAI.Embeddings;
 using OpenAI.Files;
 using OpenAI.FineTuning;
 using OpenAI.Images;
+using OpenAI.Live;
 using OpenAI.Models;
 using OpenAI.Moderations;
 using OpenAI.Realtime;
@@ -62,6 +63,7 @@ namespace OpenAI
             BatchEndpoint = new BatchEndpoint(this);
             VectorStoresEndpoint = new VectorStoresEndpoint(this);
             RealtimeEndpoint = new RealtimeEndpoint(this);
+            LiveEndpoint = new LiveEndpoint(this);
             ResponsesEndpoint = new ResponsesEndpoint(this);
             ConversationsEndpoint = new ConversationsEndpoint(this);
         }
@@ -134,6 +136,8 @@ namespace OpenAI
                 new RealtimeSessionConfigurationConverter(),
                 new RealtimeClientEventConverter(),
                 new RealtimeServerEventConverter(),
+                new LiveClientEventConverter(),
+                new LiveServerEventConverter(),
                 new ResponseContentConverter(),
                 new ResponseItemConverter(),
                 new AnnotationConverter(),
@@ -227,6 +231,13 @@ namespace OpenAI
         /// <see href="https://platform.openai.com/docs/api-reference/realtime"/>
         /// </summary>
         public RealtimeEndpoint RealtimeEndpoint { get; }
+
+        /// <summary>
+        /// Communicate with GPT-Live models in full-duplex voice sessions over WebSockets.
+        /// Supports continuous audio input/output, transcript deltas, and delegated backend work.
+        /// <see href="https://developers.openai.com/api/docs/guides/live"/>
+        /// </summary>
+        public LiveEndpoint LiveEndpoint { get; }
 
         /// <summary>
         /// Creates a model response.

@@ -29,7 +29,7 @@ namespace OpenAI.Extensions
                     {
                         var tool = knownTools?.Where(t => t.IsFunction).FirstOrDefault(t => t.Function.Name.Contains(toolChoice)) ??
                                    throw new ArgumentException($"The specified tool choice '{toolChoice}' was not found in the list of tools");
-                        activeTool = new { type = "function", function = new { name = tool.Function.Name } };
+                        activeTool = typeof(T) == typeof(ITool) ? new { type = "function", name = tool.Function.Name } : new { type = "function", function = new { name = tool.Function.Name } };
                     }
                     else
                     {

@@ -28,6 +28,8 @@ namespace OpenAI.Responses
                 "local_shell" => jObject.ToObject<LocalShellTool>(serializer),
                 "mcp" => jObject.ToObject<MCPTool>(serializer),
                 "tool" => jObject.ToObject<Tool>(serializer),
+                "web_search" => jObject.ToObject<WebSearchTool>(serializer),
+                "web_search_2025_08_26" => jObject.ToObject<WebSearchTool>(serializer),
                 "web_search_preview" => jObject.ToObject<WebSearchPreviewTool>(serializer),
                 _ => throw new NotImplementedException($"Unknown tool type: {type}")
             };

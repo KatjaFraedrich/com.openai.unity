@@ -233,6 +233,20 @@ namespace OpenAI.Models
 
         #endregion Realtime Models
 
+        #region Live Models
+
+        /// <summary>
+        /// GPT-Live 1 is a full-duplex voice model for real-time conversations.
+        /// </summary>
+        public static Model GPT_Live_1 { get; } = new("gpt-live-1", "openai");
+
+        /// <summary>
+        /// GPT Live Transcribe is a low-latency speech-to-text model for realtime transcription.
+        /// </summary>
+        public static Model GPT_Live_Transcribe { get; } = new("gpt-live-transcribe", "openai");
+
+        #endregion Live Models
+
         #region Chat Models
 
         /// <summary>

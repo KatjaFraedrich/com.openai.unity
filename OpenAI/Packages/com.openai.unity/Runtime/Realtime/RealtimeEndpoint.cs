@@ -10,6 +10,7 @@ using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Networking;
 using Utilities.Async;
 using Utilities.WebRequestRest;
 using Utilities.WebSockets;
@@ -187,6 +188,38 @@ namespace OpenAI.Realtime
             return session;
         }
 
+        /// <summary>
+        /// Exchanges a WebRTC SDP offer for an SDP answer using the Realtime unified WebRTC endpoint.
+        /// The caller owns the peer connection, media tracks, and data channel.
+        /// </summary>
+        public async Task<RealtimeWebRTCSessionResponse> CreateWebRTCSessionAsync(string sdp, SessionConfiguration configuration = null, CancellationToken cancellationToken = default)
+        {
+            configuration ??= new SessionConfiguration(Model.GPT_Realtime);
+            var sessionPayload = RealtimeSessionConfigurationConverter.ToJObject(configuration, OpenAIClient.JsonSerializer, includeClientSecret: false).ToString(Formatting.None);
+            var form = new WWWForm();
+            form.AddField("sdp", sdp);
+            form.AddField("session", sessionPayload);
+            using var request = UnityWebRequest.Post(GetUrl("/calls"), form);
+            ApplyRequestHeaders(request, client.DefaultRequestHeaders);
+            await SendWebRequestAsync(request, cancellationToken).ConfigureAwait(true);
+            return new RealtimeWebRTCSessionResponse(request.downloadHandler.text, request.responseCode);
+        }
+
+        /// <summary>
+        /// Exchanges a WebRTC SDP offer for an SDP answer using an ephemeral Realtime client secret.
+        /// The caller owns the peer connection, media tracks, and data channel.
+        /// </summary>
+        public async Task<RealtimeWebRTCSessionResponse> CreateWebRTCSessionAsync(string sdp, string ephemeralApiKey, CancellationToken cancellationToken = default)
+        {
+            using var request = new UnityWebRequest(GetUrl("/calls"), UnityWebRequest.kHttpVerbPOST);
+            request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(sdp));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Authorization", $"Bearer {ephemeralApiKey}");
+            request.SetRequestHeader("Content-Type", "application/sdp");
+            await SendWebRequestAsync(request, cancellationToken).ConfigureAwait(true);
+            return new RealtimeWebRTCSessionResponse(request.downloadHandler.text, request.responseCode);
+        }
+
         private sealed class ClientSecretRequest
         {
             public ClientSecretRequest(ExpiresAfter expiresAfter, object session)
@@ -282,6 +315,30 @@ namespace OpenAI.Realtime
                         Redact(child);
                     }
                 }
+            }
+        }
+
+        private static void ApplyRequestHeaders(UnityWebRequest request, IReadOnlyDictionary<string, string> headers)
+        {
+            if (headers == null) { return; }
+            foreach (var header in headers)
+            {
+                request.SetRequestHeader(header.Key, header.Value);
+            }
+        }
+
+        private static async Task SendWebRequestAsync(UnityWebRequest request, CancellationToken cancellationToken)
+        {
+            var operation = request.SendWebRequest();
+            while (!operation.isDone)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Yield();
+            }
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                throw new Exception($"WebRTC SDP exchange failed: {request.responseCode} {request.error}\n{request.downloadHandler?.text}");
             }
         }
 
